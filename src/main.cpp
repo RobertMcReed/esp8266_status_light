@@ -4,7 +4,7 @@
 #include "html.h"
 #include "light.h"
 
-ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch$");
+ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch");
 
 unsigned long rebootAt = 0;
 
