@@ -14,7 +14,7 @@
 
   // all of our state, flags, and useful html nodes live here
   const app = {
-    proxy: window.localStorage.getItem("__esp8266Proxy"),
+    proxy: window.localStorage.getItem("__esp8266Proxy") || "",
     state: {},
     config: {
       keys: Object.keys(configGroups),
