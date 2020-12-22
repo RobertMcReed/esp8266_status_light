@@ -4,8 +4,9 @@
 #include "html.h"
 #include "light.h"
 
-bool enableOTA = true;
-ESP8266AutoIOT app(enableOTA);
+ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch$");
+
+unsigned long rebootAt = 0;
 
 void handleResetWiFi() {
   app.resetCredentials();
@@ -16,7 +17,9 @@ void handleResetSoft() {
 }
 
 void handleResetHard() {
-  app.hardReset();
+  app.softReset();
+  rebootAt = millis();
+  Serial.println("Rebooting in 3 seconds...");
 }
 
 DynamicJsonDocument jsonBody(500);
@@ -565,5 +568,9 @@ void loop() {
     else
     {
       neoLoop(_r, _g, _b, 100, breath_mode, 3);
+    }
+
+    if (rebootAt && (millis() - rebootAt > 3000)) {
+      ESP.restart();
     }
 }
