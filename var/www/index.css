@@ -1,0 +1,139 @@
+:root {
+  --btnWidth: 175px;
+  --btnRadius: 0.25rem;
+  --themeColor: black;
+  --margin: 20px;
+}
+
+#brightness {
+  max-width: var(--btnWidth);
+}
+
+.form-range::-webkit-slider-thumb,
+.form-range::-webkit-slider-thumb:active {
+  background-color: var(--themeColor) !important;
+}
+
+.pickr > button {
+  border: 1px solid var(--themeColor);
+}
+
+header {
+  margin-top: var(--margin);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.github {
+  border-radius: 50% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0px !important;
+}
+
+.github > svg {
+  width: 35px;
+  height: 35px;
+}
+
+#custom-status-field {
+  color: var(--themeColor);
+  border-color: var(--themeColor);
+  background: transparent;
+  max-width: calc(var(--btnWidth) * 3 - 2px);
+  border-radius: 0;
+  margin-left: -1px;
+  border-top-width: 0px;
+  border-bottom-right-radius: var(--btnRadius);
+}
+
+#custom-status-field::placeholder {
+  opacity: 1;
+  color: var(--themeColor);
+  font-style: italic;
+}
+
+main > div {
+  margin-bottom: var(--margin);
+}
+
+h2 {
+  text-transform: capitalize;
+}
+
+.rainbow {
+  background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@media (min-width: 800.1px) {
+  .stacked {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stacked > div > label {
+    max-width: var(--btnWidth);
+  }
+
+  .stacked > div:first-of-type > label {
+    border-bottom-width: 0px;
+    border-radius: 0px;
+    border-top-left-radius: var(--btnRadius);
+  }
+
+  .stacked > div:last-of-type > label {
+    border-radius: 0px;
+    border-bottom-right-radius: var(--btnRadius);
+  }
+
+  .stacked.custom-visible > div:last-of-type > label:last-of-type {
+    border-radius: 0px;
+  }
+}
+
+@media (max-width: 800px) {
+  .full-width-sm {
+    width: 100%;
+  }
+
+  #brightness {
+    max-width: 100%;
+  }
+
+  .stacked.stacked-topper > div:first-of-type {
+    width: calc(100% - 1px);
+  }
+
+  .stacked > div:first-of-type > label:first-of-type {
+    border-top-left-radius: var(--btnRadius);
+  }
+
+  .stacked > div:last-of-type > label:last-of-type {
+    border-bottom-right-radius: var(--btnRadius);
+  }
+
+  .stacked.custom-visible > div:last-of-type > label:last-of-type {
+    border-bottom-right-radius: 0px !important;
+  }
+
+  .stacked > div:first-of-type > label,
+  .stacked > div:last-of-type > label {
+    border-radius: 0;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
