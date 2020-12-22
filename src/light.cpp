@@ -434,14 +434,14 @@ void rainbowTheater() {
 }
 
 void noWiFiSolidOrange() {
-  strip.setBrightness(100);
+  strip.setBrightness(75);
   strip.fill(strip.Color(240, 100, 0));
   strip.show();
 }
 
 void inConfigSolidBlue() {
   strip.fill(strip.Color(0, 100, 255));
-  strip.setBrightness(100);
+  strip.setBrightness(75);
   strip.show();
 }
 
