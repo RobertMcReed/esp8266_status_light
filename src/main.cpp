@@ -9,17 +9,11 @@ ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch");
 unsigned long rebootAt = 0;
 
 void handleResetWiFi() {
-  app.resetCredentials();
+  app.resetWiFiCredentials(true);
 }
 
-void handleResetSoft() {
-  app.softReset();
-}
-
-void handleResetHard() {
-  app.softReset();
-  rebootAt = millis();
-  Serial.println("Rebooting in 3 seconds...");
+void handleResetAllSettings() {
+  app.resetAllSettings(true);
 }
 
 DynamicJsonDocument jsonBody(500);
@@ -490,12 +484,7 @@ void setup() {
   delay(1000);
   neoSetup();
 
-  // To change the WiFi your device connects to, reset WiFi Credentials
-  // app.resetCredentials();
-  // app.softReset();
-  // app.hardReset();
   app.enableCors();
-
   app.disableLED();
   app.root(HTML);
 
@@ -544,10 +533,8 @@ void setup() {
   app.get("/config/brightness/high", handleSetBrightnessHigh);
 
   // resets
-  app.get("/reset/wifi", handleResetWiFi); // reset WiFi credentials
-  app.get("/reset/soft", handleResetSoft); // reset WiFi credentials and clear storage
-  app.get("/reset/hard", handleResetHard); // reset WiFi, clear storage, and reboot device (glitchy)
-
+  app.get("/reset/wifi", handleResetWiFi); // reset WiFi credentials and reboot
+  app.get("/reset/all", handleResetAllSettings); // reset WiFi, clear storage, and reboot device
   
   inConfigSolidBlue(); // this is actually indicating that we've not yet connected to WiFi
   app.setOnDisconnect(handleDisconnected);
@@ -568,9 +555,5 @@ void loop() {
     else
     {
       neoLoop(_r, _g, _b, 100, breath_mode, 3);
-    }
-
-    if (rebootAt && (millis() - rebootAt > 3000)) {
-      ESP.restart();
     }
 }

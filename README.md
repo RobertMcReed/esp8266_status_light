@@ -138,15 +138,11 @@ Turn lights off or revert to previous state. As this is a wrapper around `/power
 
 ###### `GET /reset/wifi`
 
-Clear the saved WiFi credentials. This will also disconnect you from the network.
+Clear the saved WiFi credentials. This will also disconnect you from the network, and reset the device. Upon rebooting the device will enter the configuration portal.
 
-###### `GET /reset/soft`
+###### `GET /reset/all`
 
-Clear the saved WiFi credentials and clear the flash storage (hostname/password). This will also disconnect you from the network.
-
-###### `GET /reset/hard`
-
-Clear the saved WiFi credentials, clear the flash storage (hostname/password), and force the device to reboot after 3 seconds.
+Clear the saved WiFi credentials and clear the flash storage (hostname/password). This will also disconnect you from the network and reboot the device. The hostname and password are returned to their defaults.
 
 ##### Status
 
