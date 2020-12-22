@@ -8,17 +8,17 @@ Control an ESP8266 powered NeoPixel strip via a rest api or web portal. Tested a
 
 On first boot, the device will create an access point named `esp8266` which will be password protected via the default password `newcouch`.
 
-To configure the device, join the network and enter the password. After a few seconds you should be greeted with a captive portal where you can configure the settings. If for whatever reason the portal does not display, you can navigate there directly once connected to the device by opening a browser to `192.168.0.4`.
+To configure the device, join the network and enter the password. After a few seconds you should be greeted with a captive portal where you can configure the settings. If for whatever reason the portal does not display, you can navigate there directly once connected to the device by opening a browser to `192.168.4.1`.
 
 ### Configuring
 
 From the settings page, you should click "Configure WiFi" in order to connect the device to your network.
 
-Choose your network from the list, and then enter your network's password.
+Choose your network from the list, and then enter your network's password. On this page you can also set the device's hostname and connection password. This password will be used in the future if the device starts in access point mode. The password must be at least 4 characters long, or will be ignored. The hostname should not be too long, or bad things will happen.
 
 #### Hostname
 
-At this time you may also set a custom hostname for the device. Setting a friendly hostname will make it easier for you to interact with your device. For example, if you set the hostname to `martha`, you will hereon out be able to access the device on your local network as `http://martha.local`.
+At this time you may also set a custom hostname for the device. Setting a friendly hostname will make it easier for you to interact with your device. For example, if you set the hostname to `martha`, you will hereon out be able to access the device on your local network as `http://martha.local`. It may be a good idea to set the hostname as the name of whoever will be using this device.
 
 If for whatever reason the hostname resolution is not working (are you on Windows?) you will need to identify the ip address of the device manually. You can do this in one of two ways. Either go to your router's device table and identify the ESP8266, or plug the device into your computer and connect to it via Serial (BAUD 115200). Once connected to the network it will print its ip address to the Serial Monitor.
 
@@ -146,7 +146,7 @@ Clear the saved WiFi credentials and clear the flash storage (hostname/password)
 
 ###### `GET /reset/hard`
 
-Clear the saved WiFi credentials, clear the flash storage (hostname/password), and force the device to reboot. This is glitchy, and usually results in the device reconnecting to the same WiFi network immediately. On a second reboot it will typically enter the config portal.
+Clear the saved WiFi credentials, clear the flash storage (hostname/password), and force the device to reboot after 3 seconds.
 
 ##### Status
 
