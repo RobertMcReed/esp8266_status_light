@@ -27,8 +27,9 @@ void rainbow();
 void rainbowMarquee();
 void rainbowTheater();
 
-void noWiFiSolidOrange();
-void inConfigSolidBlue();
+void solidRed();
+void solidBlue();
+void solidOrange();
 
 void clearStrip();
 

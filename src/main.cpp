@@ -1,9 +1,12 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <ESP8266AutoIOT.h>   // https://github.com/RobretMcReed/esp8266AutoIOT.git
+#include <EasierButton.h>   // https://github.com/RobretMcReed/EasierButton.git
+#include <ESP8266AutoIOT.h>   // https://github.com/RobretMcReed/ESP8266AutoIOT.git
+
 #include "html.h"
 #include "light.h"
 
+EasierButton btn(D0, false);
 ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch");
 
 unsigned long rebootAt = 0;
@@ -395,13 +398,26 @@ String handleSetRainbowTheater() {
   return handleSetMode(rainbow_theater_mode);
 }
 
-String handleSetNextMode() {
+int getNextMode() {
   uint8_t nextMode = neo_mode + 1;
 
   if (nextMode >= MODE_END) {
     nextMode = 0;
   }
-  return handleSetMode(nextMode);
+
+  return nextMode;
+}
+
+String handleSetNextMode() {
+  return handleSetMode(getNextMode());
+}
+
+void btnNextMode() {
+  handleSetNextMode();
+}
+
+void btnHoldOff() {
+  handleSetMode(off_mode);
 }
 
 String handleSetPrevMode() {
@@ -458,7 +474,7 @@ enum {
 int wiFiStatus = disconnected;
 
 void handleDisconnected() {
-  noWiFiSolidOrange();
+  solidOrange();
   wiFiStatus = disconnected;
   _r = 240;
   _g = 100;
@@ -466,7 +482,7 @@ void handleDisconnected() {
 }
 
 void handleInConfig() {
-  inConfigSolidBlue();
+  solidBlue();
   wiFiStatus = inConfig;
   _r = 0;
   _g = 100;
@@ -483,6 +499,24 @@ void setup() {
   Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
   delay(1000);
   neoSetup();
+
+  // blue unless otherwise specified
+  solidBlue();
+
+  btn.setOnHold(3000, btnHoldOff);
+  btn.setOnSingleClick(btnNextMode);
+
+  // if the button is held for 3 seconds on startup,
+  // reset all settings
+  if (btn.begin(3000)) {
+    // red to acknowledge the pending reboot
+    Serial.println("[WARNING] __HARD_RESET__ in 3 seconds...");
+    solidRed();
+    delay(3000);
+    // this will trigger the board to reboot
+    handleResetAllSettings();
+    return;
+  }
 
   app.enableCors();
   app.disableLED();
@@ -536,7 +570,6 @@ void setup() {
   app.get("/reset/wifi", handleResetWiFi); // reset WiFi credentials and reboot
   app.get("/reset/all", handleResetAllSettings); // reset WiFi, clear storage, and reboot device
   
-  inConfigSolidBlue(); // this is actually indicating that we've not yet connected to WiFi
   app.setOnDisconnect(handleDisconnected);
   app.setOnEnterConfig(handleInConfig);
   app.setOnConnect(handleConnected);
@@ -546,8 +579,9 @@ void setup() {
 }
 
 void loop() {
-    // You must call app.loop(); to keep the server going...
-    app.loop();
+  // if app.loop() returns false, a reboot is pending (because we didn't call app.begin())
+  if (app.loop()) {
+    btn.update();
     if (wiFiStatus == connected)
     {
       neoLoop(r, g, b, a, neo_mode, speed);
@@ -556,4 +590,5 @@ void loop() {
     {
       neoLoop(_r, _g, _b, 100, breath_mode, 3);
     }
+  }
 }

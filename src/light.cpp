@@ -433,14 +433,20 @@ void rainbowTheater() {
   neo_step_k += 3;
 }
 
-void noWiFiSolidOrange() {
+void solidOrange() {
   strip.setBrightness(75);
   strip.fill(strip.Color(240, 100, 0));
   strip.show();
 }
 
-void inConfigSolidBlue() {
+void solidBlue() {
   strip.fill(strip.Color(0, 100, 255));
+  strip.setBrightness(75);
+  strip.show();
+}
+
+void solidRed() {
+  strip.fill(strip.Color(255, 0, 0));
   strip.setBrightness(75);
   strip.show();
 }
