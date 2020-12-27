@@ -2,6 +2,8 @@
 
 Control an ESP8266 powered NeoPixel strip via a rest api or web portal. Tested and works well with ESP8266 12-E Node MCU and WeMos D1 Mini. Can work on an ESP-01 but is less reliable. NeoPixels are finnicky from the ESP-01.
 
+TODO: Add documentation for button presses, and boot hold options
+
 ## First Boot
 
 ### Connecting
@@ -136,14 +138,6 @@ Turn the lights off. Ignored if lights are already off. This will also set the s
 
 Turn lights off or revert to previous state. As this is a wrapper around `/power/off` and `/power/on`, see notes regarding the effect on the current status.
 
-###### `GET /reset/wifi`
-
-Clear the saved WiFi credentials. This will also disconnect you from the network, and reset the device. Upon rebooting the device will enter the configuration portal.
-
-###### `GET /reset/all`
-
-Clear the saved WiFi credentials and clear the flash storage (hostname/password). This will also disconnect you from the network and reboot the device. The hostname and password are returned to their defaults.
-
 ##### Status
 
 ###### `GET /status/free`
@@ -157,6 +151,10 @@ Mark self as "Busy" and set lights pink. Set solid if not in a color mode. Set b
 ###### `GET /status/dnd`
 
 Mark self as "DND" (do not disturb) and set lights red. Set solid if not in a color mode. Set brightness to max(50, previousBrightness).
+
+###### `GET /status/party`
+
+Mark self as "Party!" and set lights to rainbow. Set brightness to max(75, previousBrightness).
 
 ###### `GET /status/unknown`
 
@@ -204,7 +202,7 @@ Change mode to rainbow theater. Status is set to "Party!" unless you have a cust
 
 ##### Animation Speed
 
-###### `GET /config/speed/slow`
+###### `GET /config/speed/low`
 
 Set speed to 1 (slowest).
 
@@ -212,7 +210,7 @@ Set speed to 1 (slowest).
 
 Set speed to 3.
 
-###### `GET /config/speed/fast`
+###### `GET /config/speed/high`
 
 Set speed to 5 (fastest).
 

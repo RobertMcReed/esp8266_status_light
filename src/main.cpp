@@ -5,97 +5,110 @@
 
 #include "html.h"
 #include "light.h"
+#include "helpers.h"
+#include "defaults.h"
 
 EasierButton btn(D0, false);
 ESP8266AutoIOT app((char*)"esp8266", (char*)"newcouch");
 
-unsigned long rebootAt = 0;
-
-void handleResetWiFi() {
-  app.resetWiFiCredentials(true);
+// utility
+void handleReboot() {
+  _resetFlagged = true;
+  solidOrange();
+  Serial.println(F("[INFO] Reboot pending in 5 seconds!"));
 }
 
 void handleResetAllSettings() {
   app.resetAllSettings(true);
 }
 
-DynamicJsonDocument jsonBody(500);
-uint8_t r = 0;
-uint8_t g = 255;
-uint8_t b = 0;
-uint8_t _r = 0;
-uint8_t _g = 255;
-uint8_t _b = 0;
-uint8_t a = 50;
-uint8_t MAX = 255;
-uint8_t MAX_A = 150;
-uint8_t MIN = 0;
-uint8_t speed = 3;
+int getModeNumFromModeName(String requestedMode) {
+  if (!strcmp(requestedMode.c_str(), "off")) {
+    return off_mode;
+  }
 
-enum {
-  status_free,
-  status_busy,
-  status_dnd,
-  status_unknown,
-  status_party,
-  status_custom,
-};
+  // return last mode registered if turned back "on"
+  if (!strcmp(requestedMode.c_str(), "on")) {
+    return getLastNeoMode();
+  }
 
-char customStatus[80];
-const char* STATUSES[] = { "Free", "Busy", "DND", "Unknown", "Party!" };
+  for (int i = 0; i < MODE_END; i++) {
+    if (!strcmp(requestedMode.c_str(), NEO_MODE_NAMES[i])) {
+      return i;
+    }
+  }
 
-uint8_t currentStatus = status_unknown;
-
-uint8_t neo_mode = off_mode;
-
-const char* NEO_MODE_NAMES[] = { "solid", "breath", "marquee", "theater", "rainbow", "rainbow_marquee", "rainbow_theater" };
-
-String makeSimpleJson(String key, String value) {
-  DynamicJsonDocument jDoc(16);
-  jDoc[key.c_str()] = value.c_str();
-
-  char jChar[128];
-
-  serializeJson(jDoc, jChar);
-
-  return jChar;
+  return -1;
 }
 
-String makeSimpleJson(String key, int value) {
-  DynamicJsonDocument jDoc(16);
-  jDoc[key.c_str()] = value;
-
-  char jChar[128];
-
-  serializeJson(jDoc, jChar);
-
-  return jChar;
+void ensureStatusMatchesMode(bool colorsChanged) {
+  // set status unknown if device is off or colors changed while free/busy/dnd
+  // or we just switched out of party mode
+  if ((neo_mode == off_mode) || (colorsChanged && (currentStatus < status_unknown)) || ((neo_mode < rainbow_mode) && (currentStatus == status_party))) {
+    currentStatus = status_unknown;
+    // set party if any rainbow and not custom status
+  } else if ((neo_mode > theater_mode) && (currentStatus != status_custom)) {
+    // set status to party if in rainbow mode, as long as no custom status is set
+    currentStatus = status_party;
+  }
 }
 
-String makeErrorJson(String errorMessage) {
-  String errorJson = makeSimpleJson("error", errorMessage.c_str());
+bool setMode(int requestedMode) {
+  if (((requestedMode < MODE_END) && (requestedMode >= 0)) || requestedMode == off_mode) {
+    neo_mode = requestedMode;
+    return true;
+  }
 
-  Serial.print("[ERROR]: ");
-  Serial.println(errorJson);
-
-  return errorJson;
+  return false;
 }
 
-String getStatus() {
+bool setModeByName(String requestedMode) {
+  int mode_num = getModeNumFromModeName(requestedMode);
+
+  bool success = setMode(mode_num);
+
+  return success;
+}
+
+void setModeSafe(int newMode) {
+  setMode(newMode);
+  ensureStatusMatchesMode(false);
+}
+
+void enforceColorMode() {
+  a = max(a, (uint8_t)50);
+  if (neo_mode > theater_mode) {
+    neo_mode = solid_mode;
+  }
+}
+
+// getters
+String getStatusAsString() {
   String status = currentStatus == status_custom ? customStatus : STATUSES[currentStatus];
   
   return status;
 }
 
-String getStatusJson() {
-  return makeSimpleJson("status", getStatus());
+int getNextMode() {
+  uint8_t nextMode = neo_mode + 1;
+
+  if (nextMode >= MODE_END) {
+    nextMode = 0;
+  }
+
+  return nextMode;
 }
 
-String getJsonConfig() {
+// getters - route handlers
+String getStatusAsJson() {
+  return makeSimpleJson("status", getStatusAsString());
+}
+
+String getConfigAsJson() {
   const size_t capacity = JSON_ARRAY_SIZE(6) + JSON_OBJECT_SIZE(4);
   DynamicJsonDocument neoDoc(capacity);
   
-  String status = getStatus();
+  String status = getStatusAsString();
   JsonArray color = neoDoc.createNestedArray("color");
   color.add(r);
   color.add(g);
@@ -113,119 +126,165 @@ String getJsonConfig() {
   return output;
 }
 
-int getMode(String requestedMode) {
-  for (int i = 0; i < MODE_END; i++) {
-    if (!strcmp(requestedMode.c_str(), NEO_MODE_NAMES[i])) {
-      return i;
-    }
+// setters
+void setNextLightStyle() {
+  Serial.println("Next light style");
+  int nextMode = getNextMode();
+  if (neo_mode <= theater_mode && nextMode > theater_mode) {
+      nextMode = solid_mode;
+  } else if (neo_mode > theater_mode && neo_mode < MODE_END && nextMode < rainbow_mode) {
+    nextMode = rainbow_mode;
   }
 
-  // this really doesn't need to be a special case
-  if (!strcmp(requestedMode.c_str(), "off")) {
-    return off_mode;
-  }
-
-  // return last mode registered if turned back "on"
-  if (!strcmp(requestedMode.c_str(), "on")) {
-    return getLastNeoMode();
-  }
-
-  return -1;
+  neo_mode = nextMode;
+  a = max(a, (uint8_t)15);
 }
 
-bool setMode(String requestedMode) {
-  int mode_num = getMode(requestedMode);
-
-  if (mode_num == -1) {
-    return false;
-  }
-
-  neo_mode = mode_num;
-  return true;
-}
-
-bool setMode(int requestedMode) {
-  if (((requestedMode < MODE_END) && (requestedMode >= 0)) || requestedMode == off_mode) {
-    neo_mode = requestedMode;
-    return true;
-  }
-
-  return false;
-}
-
-void ensureStatus() {
-  a = max(a, (uint8_t)50);
-  if (neo_mode > theater_mode) {
-    neo_mode = solid_mode;
-  }
-}
-
-String setFree() {
+void setFree() {
   r = 0;
   g = 255;
   b = 0;
   currentStatus = status_free;
 
-  ensureStatus();
-
-  return getJsonConfig();
+  enforceColorMode();
 }
 
-String setBusy() {
+void setBusy() {
   r = 255;
   g = 0;
   b = 255;
   currentStatus = status_busy;
 
-  ensureStatus();
-
-  return getJsonConfig();
+  enforceColorMode();
 }
 
-String setDND() {
+void setDND() {
   r = 255;
   g = 0;
   b = 0;
   currentStatus = status_dnd;
 
-  ensureStatus();
-
-  return getJsonConfig();
+  enforceColorMode();
 }
 
-String setUnknown() {
+void setUnknown() {
   currentStatus = status_unknown;
-
-  return getJsonConfig();
 }
 
-String setParty() {
+void setParty() {
+  Serial.println("Set party");
   currentStatus = status_party;
-  a = 150;
+  a = max(a, MED_A);
   neo_mode = rainbow_marquee_mode;
   speed = max((uint8_t)3, speed);
-
-  return getJsonConfig();
 }
 
-void verifyStatusIsCorrect(bool colorsChanged) {
-  // set status unknown if device is off or colors changed while free/busy/dnd
-  // or we just switched out of party mode
-  if ((neo_mode == off_mode) || (colorsChanged && (currentStatus < status_unknown)) || ((neo_mode < rainbow_mode) && (currentStatus == status_party))) {
-    currentStatus = status_unknown;
-    // set party if any rainbow and not custom status
-  } else if ((neo_mode > theater_mode) && (currentStatus != status_custom)) {
-    // set status to party if in rainbow mode, as long as no custom status is set
-    currentStatus = status_party;
+void setNextStatus() {
+  Serial.println("Next status");
+  if (currentStatus == status_free) {
+    setBusy();
+  } else if (currentStatus == status_busy) {
+    setDND();
+  } else {
+    setFree();
   }
 }
 
-String handleGetHostname() {
+void setNextMode() {
+  setModeSafe(getNextMode());
+}
+
+void setOffMode() {
+  Serial.println("Setting off");
+  setModeSafe(off_mode);
+}
+
+void setRandomColor() {
+  Serial.println("Random color");
+  enforceColorMode();
+
+  byte num = rand() % 255;
+
+  // ensure the color is different enough
+  while (
+    abs(num - _lastRand) < 40 
+      || (num < 20 && _lastRand > 235)
+      || (_lastRand < 20 && num > 235)
+  ) {
+    num = rand() % 255;
+  }
+
+  _lastRand = num;
+  r = wheel_r(num & 255);
+  g = wheel_g(num & 255);
+  b = wheel_b(num & 255);
+}
+
+void setSpeedLow() {
+  speed = 1;
+}
+
+void setSpeedMed() {
+  speed = 3;
+}
+
+void setSpeedHigh() {
+  speed = 5;
+}
+
+void setNextSpeed() {
+  Serial.println("Next speed");
+  if (++speed > 5) {
+    speed = 1;
+  }
+}
+
+void setBrightness(uint8_t newA) {
+  a = min(newA, MAX_A);
+  a = max(newA, MIN);
+
+  if (neo_mode == off_mode) {
+    neo_mode = getLastNeoMode();
+  }
+}
+
+void setBrightnessLow() {
+  setBrightness(LOW_A);
+}
+
+void setBrightnessMed() {
+  setBrightness(MED_A);
+}
+
+void setBrightnessHigh() {
+  setBrightness(MAX_A);
+}
+
+void setNextBrightness() {
+  Serial.println("Next brightness");
+  if (a < LOW_A) {
+    setBrightnessLow();
+  } else if (a < MED_A) {
+    setBrightnessMed();
+  } else if (a < MAX_A) {
+    setBrightnessHigh();
+  } else {
+    setBrightnessLow();
+  }
+}
+
+String setModeSafeAndGetJson(int newMode) {
+  setModeSafe(newMode);
+  return getConfigAsJson();
+}
+
+// setters - route handlers
+String handleGetHostnameRequest() {
   String hostname = app.getHostname();
   return makeSimpleJson("hostname", hostname);
 }
 
-String handleConfigRequest(String body) {
+String handleSetConfigRequest(String body) {
   Serial.print("[REQUEST]: ");
   Serial.println(body);
 
@@ -246,7 +305,7 @@ String handleConfigRequest(String body) {
   bool success = true;
   if (jsonBody.containsKey("mode")) {
     String requestedMode = jsonBody["mode"];
-    success = setMode(requestedMode);
+    success = setModeByName(requestedMode);
   } else if (jsonBody.containsKey("mode_num")) {
     int requestedMode = jsonBody["mode_num"];
     success = setMode(requestedMode);
@@ -271,11 +330,11 @@ String handleConfigRequest(String body) {
   uint8_t temp_a = a;
   bool colorChanged = false;
   if (jsonBody.containsKey("color")) {
+    colorChanged = true;
     r = jsonBody["color"][0];
     g = jsonBody["color"][1];
     b = jsonBody["color"][2];
     temp_a = jsonBody["color"][3];
-    colorChanged = true;
 
     r = max(r, MIN);
     r = min(r, MAX);
@@ -303,11 +362,11 @@ String handleConfigRequest(String body) {
 
   if (jsonBody.containsKey("speed")) {
     speed = jsonBody["speed"];
-    speed = min(speed, (uint8_t)5); // MAX SPEED = 5
-    speed = max(speed, (uint8_t)1);
+    speed = min(speed, MAX_SPEED);
+    speed = max(speed, MIN_SPEED);
   }
 
-  bool skipVerifyStatus = false;
+  bool skipEnsureStatus = false;
   if (jsonBody.containsKey("status")) {
     String status = jsonBody["status"];
 
@@ -319,105 +378,108 @@ String handleConfigRequest(String body) {
     } else if (!strcmp(status.c_str(), STATUSES[2])) {
       setDND();
     } else if (!strcmp(status.c_str(), STATUSES[3])) {
-      skipVerifyStatus = true;
+      skipEnsureStatus = true;
       setUnknown();
     } else if (!strcmp(status.c_str(), STATUSES[4])) {
       setParty();
     } else {
-      skipVerifyStatus = true;
+      skipEnsureStatus = true;
       currentStatus = status_custom;
       strcpy(customStatus, status.c_str());
     }
 
     Serial.print("Setting status to: ");
-    Serial.println(getStatus());
+    Serial.println(getStatusAsString());
   }
 
   // don't overwrite custom statuses or unknown
-  if (!skipVerifyStatus) {
-    verifyStatusIsCorrect(colorChanged); // check status against current mode
+  if (!skipEnsureStatus) {
+    ensureStatusMatchesMode(colorChanged);
   }
 
-  String neoSettings = getJsonConfig();
+  String neoSettings = getConfigAsJson();
   Serial.print("[RESPONSE]: ");
   Serial.println(neoSettings);
 
   return neoSettings;
 }
 
-String handleSetMode(int newMode) {
-  neo_mode = newMode;
-  verifyStatusIsCorrect(false);
-  return getJsonConfig();
+// setters - route handlers - status setters
+String handleSetFreeRequest() {
+  setFree();
+  return getConfigAsJson();
 }
 
-String handleSetOff() {
-  return handleSetMode(off_mode);
+String handleSetBusyRequest() {
+  setBusy();
+  return getConfigAsJson();
 }
 
-String handleSetOn() {
-  return handleSetMode(getLastNeoMode());
+String handleSetDNDRequest() {
+  setDND();
+  return getConfigAsJson();
 }
 
-String handleSwitch() {
+String handleSetUnknownRequest() {
+  setUnknown();
+  return getConfigAsJson();
+}
+
+String handleSetPartyRequest() {
+  setParty();
+  return getConfigAsJson();
+}
+
+// setters - route handlers - mode setters
+String handleSetOffRequest() {
+  return setModeSafeAndGetJson(off_mode);
+}
+
+String handleSetOnRequest() {
+  return setModeSafeAndGetJson(getLastNeoMode());
+}
+
+String handleToggleRequest() {
   if (neo_mode == off_mode)
   {
-    return handleSetOn();
+    return handleSetOnRequest();
   }
   else
   {
-    return handleSetOff();
+    return handleSetOffRequest();
   }
 }
 
-String handleSetSolid() {
-  return handleSetMode(solid_mode);
+String handleSetSolidRequest() {
+  return setModeSafeAndGetJson(solid_mode);
 }
 
-String handleSetBreath() {
-  return handleSetMode(breath_mode);
+String handleSetBreathRequest() {
+  return setModeSafeAndGetJson(breath_mode);
 }
 
-String handleSetMarquee() {
-  return handleSetMode(marquee_mode);
+String handleSetMarqueeRequest() {
+  return setModeSafeAndGetJson(marquee_mode);
 }
 
-String handleSetTheater() {
-  return handleSetMode(theater_mode);
+String handleSetTheaterRequest() {
+  return setModeSafeAndGetJson(theater_mode);
 }
 
-String handleSetRainbow() {
-  return handleSetMode(rainbow_mode);
+String handleSetRainbowRequest() {
+  return setModeSafeAndGetJson(rainbow_mode);
 }
 
-String handleSetRainbowMarquee() {
-  return handleSetMode(rainbow_marquee_mode);
+String handleSetRainbowMarqueeRequest() {
+  return setModeSafeAndGetJson(rainbow_marquee_mode);
 }
 
-String handleSetRainbowTheater() {
-  return handleSetMode(rainbow_theater_mode);
-}
-
-int getNextMode() {
-  uint8_t nextMode = neo_mode + 1;
-
-  if (nextMode >= MODE_END) {
-    nextMode = 0;
-  }
-
-  return nextMode;
+String handleSetRainbowTheaterRequest() {
+  return setModeSafeAndGetJson(rainbow_theater_mode);
 }
 
 String handleSetNextMode() {
-  return handleSetMode(getNextMode());
-}
-
-void btnNextMode() {
-  handleSetNextMode();
-}
-
-void btnHoldOff() {
-  handleSetMode(off_mode);
+  return setModeSafeAndGetJson(getNextMode());
 }
 
 String handleSetPrevMode() {
@@ -426,52 +488,42 @@ String handleSetPrevMode() {
   if ((prevMode >= MODE_END) || (prevMode < 0)) {
     prevMode = MODE_END - 1;
   }
-  return handleSetMode(prevMode);
+
+  return setModeSafeAndGetJson(prevMode);
 }
 
-String handleSetSpeedSlow() {
-  speed = 1;
-  return getJsonConfig();
+String handleSetSpeedLow() {
+  setSpeedLow();
+  return getConfigAsJson();
 }
 
-String handleSetSpeedNormal() {
-  speed = 3;
-  return getJsonConfig();
+String handleSetSpeedMed() {
+  setSpeedMed();
+  return getConfigAsJson();
 }
 
-String handleSetSpeedFast() {
-  speed = 5;
-  return getJsonConfig();
-}
-
-String ensureBrightness(uint8_t newA) {
-  a = newA;
-
-  if (neo_mode == off_mode) {
-    neo_mode = getLastNeoMode();
-  }
-  return getJsonConfig();
+String handleSetSpeedHigh() {
+  setSpeedHigh();
+  return getConfigAsJson();
 }
 
 String handleSetBrightnessLow() {
-  return ensureBrightness(25);
+  setBrightnessLow();
+
+  return getConfigAsJson();
 }
 
-String handleSetBrightnessMedium() {
-  return ensureBrightness(50);
+String handleSetBrightnessMed() {
+  setBrightnessMed();
+  return getConfigAsJson();
 }
 
 String handleSetBrightnessHigh() {
-  return ensureBrightness(MAX_A);
+  setBrightnessHigh();
+  return getConfigAsJson();
 }
 
-enum {
-  disconnected = 0,
-  inConfig = 1,
-  connected = 2,
-};
-
-int wiFiStatus = disconnected;
+// WiFi Event Handlers
 
 void handleDisconnected() {
   solidOrange();
@@ -494,101 +546,152 @@ void handleConnected() {
   clearStrip();
 }
 
-void setup() {
-  // WiFi information is printed, so it's a good idea to start the Serial monitor
-  Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
-  delay(1000);
-  neoSetup();
+// setup helpers
 
-  // blue unless otherwise specified
-  solidBlue();
+void setupButton() {
+  btn.setOnSingleClick(setNextStatus);
+  btn.setOnDoubleClick(setNextLightStyle);
+  btn.setOnTripleClick(setNextBrightness);
 
-  btn.setOnHold(3000, btnHoldOff);
-  btn.setOnSingleClick(btnNextMode);
+  btn.setOnReleasedAfter(500, setNextSpeed);
+  btn.setOnHold(1250, setRandomColor);
+  btn.setOnHold(2500, setParty);
 
-  // if the button is held for 3 seconds on startup,
-  // reset all settings
-  if (btn.begin(3000)) {
-    // red to acknowledge the pending reboot
-    Serial.println("[WARNING] __HARD_RESET__ in 3 seconds...");
-    solidRed();
-    delay(3000);
-    // this will trigger the board to reboot
-    handleResetAllSettings();
-    return;
-  }
+  btn.setOnHold(3500, setOffMode);
+  btn.setOnHold(10000, handleReboot);
+}
 
+void setupApp() {
+  // setup our app
+  solidBlue(); // blue until we connect to WiFi
   app.enableCors();
   app.disableLED();
   app.root(HTML);
 
   // return the current hostname
-  app.get("/hostname", handleGetHostname);
+  app.get("/hostname", handleGetHostnameRequest);
 
   // power
-  app.get("/power/on", handleSetOn); // turn lights on (revert to previously known state)
-  app.get("/power/off", handleSetOff); // turn lights off
-  app.get("/power/toggle", handleSwitch); // turn lights off or revert to previous state
+  app.get("/power/on", handleSetOnRequest); // turn lights on (revert to previously known state)
+  app.get("/power/off", handleSetOffRequest); // turn lights off
+  app.get("/power/toggle", handleToggleRequest); // turn lights off or revert to previous state
 
   // status
-  app.get("/status", getStatusJson); // get current status
-  app.get("/status/free", setFree); // mark self as free (green)
-  app.get("/status/busy", setBusy); // mark self as busy (yellow)
-  app.get("/status/dnd", setDND); // mark self as dnd (red)
-  app.get("/status/unknown", setUnknown); // mark self as unknown (status only)
+  app.get("/status", getStatusAsJson); // get current status
+  app.get("/status/free", handleSetFreeRequest); // mark self as free (green)
+  app.get("/status/busy", handleSetBusyRequest); // mark self as busy (yellow)
+  app.get("/status/dnd", handleSetDNDRequest); // mark self as dnd (red)
+  app.get("/status/party", handleSetPartyRequest); // mark self as Party!
+  app.get("/status/unknown", handleSetUnknownRequest); // mark self as unknown (status only)
 
   // config
-  app.post("/config", handleConfigRequest); // set any setting manually
-  app.get("/config/state", getJsonConfig); // get full config
+  app.post("/config", handleSetConfigRequest); // set any setting manually
+  app.get("/config/state", getConfigAsJson); // get full config
 
   // config shorthand - mode
   app.get("/config/mode/next", handleSetNextMode); // change to next mode
   app.get("/config/mode/prev", handleSetPrevMode); // change to next mode
-  app.get("/config/mode/solid", handleSetSolid); // change to solid mode
-  app.get("/config/mode/breath", handleSetBreath); // change to breath mode
-  app.get("/config/mode/marquee", handleSetMarquee); // change to marquee mode
-  app.get("/config/mode/theater", handleSetTheater); // change to theater mode
-  app.get("/config/mode/rainbow", handleSetRainbow); // change to rainbow mode
-  app.get("/config/mode/rainbow/marquee", handleSetRainbowMarquee); // change to rainbow marquee mode
-  app.get("/config/mode/marquee/rainbow", handleSetRainbowMarquee); // change to rainbow marquee mode
-  app.get("/config/mode/rainbow/theater", handleSetRainbowTheater); // change to theater rainbow mode
-  app.get("/config/mode/theater/rainbow", handleSetRainbowTheater); // change to theater rainbow mode
+  app.get("/config/mode/solid", handleSetSolidRequest); // change to solid mode
+  app.get("/config/mode/breath", handleSetBreathRequest); // change to breath mode
+  app.get("/config/mode/marquee", handleSetMarqueeRequest); // change to marquee mode
+  app.get("/config/mode/theater", handleSetTheaterRequest); // change to theater mode
+  app.get("/config/mode/rainbow", handleSetRainbowRequest); // change to rainbow mode
+  app.get("/config/mode/rainbow/marquee", handleSetRainbowMarqueeRequest); // change to rainbow marquee mode
+  app.get("/config/mode/marquee/rainbow", handleSetRainbowMarqueeRequest); // change to rainbow marquee mode
+  app.get("/config/mode/rainbow/theater", handleSetRainbowTheaterRequest); // change to theater rainbow mode
+  app.get("/config/mode/theater/rainbow", handleSetRainbowTheaterRequest); // change to theater rainbow mode
 
   // config shorthand - speed
-  app.get("/config/speed/slow", handleSetSpeedSlow);
-  app.get("/config/speed/medium", handleSetSpeedNormal);
-  app.get("/config/speed/med", handleSetSpeedNormal);
-  app.get("/config/speed/fast", handleSetSpeedFast);
+  app.get("/config/speed/low", handleSetSpeedLow);
+  app.get("/config/speed/medium", handleSetSpeedMed);
+  app.get("/config/speed/med", handleSetSpeedMed);
+  app.get("/config/speed/high", handleSetSpeedHigh);
 
   // config shorthand - brightness
   app.get("/config/brightness/low", handleSetBrightnessLow);
-  app.get("/config/brightness/medium", handleSetBrightnessMedium);
-  app.get("/config/brightness/med", handleSetBrightnessMedium);
+  app.get("/config/brightness/medium", handleSetBrightnessMed);
+  app.get("/config/brightness/med", handleSetBrightnessMed);
   app.get("/config/brightness/high", handleSetBrightnessHigh);
-
-  // resets
-  app.get("/reset/wifi", handleResetWiFi); // reset WiFi credentials and reboot
-  app.get("/reset/all", handleResetAllSettings); // reset WiFi, clear storage, and reboot device
   
+  // setup event listeners
   app.setOnDisconnect(handleDisconnected);
   app.setOnEnterConfig(handleInConfig);
   app.setOnConnect(handleConnected);
 
+  // enter the config portal and block until connected to WiFi
   app.begin();
   clearStrip();
 }
 
+// HERE WE GO!
+
+void setup() {
+  Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
+  delay(1000);
+
+  neoSetup(); // initialize light strip
+
+  bool held = btn.begin(1000);
+
+  if (held) {
+    USE_WIFI = false;
+    Serial.println(F("[INFO] Button held at boot. Skipping WiFi!"));
+    solidOrange(); // acknowledge no WiFi mode
+
+    if (btn.heldFor(4000)) {
+      Serial.println(F("[WARNING] __HARD_RESET__ in 5 seconds..."));
+      solidRed(); // acknowledge the pending reboot
+      Serial.println(F("[INFO] Click in the next 5 seconds to cancel"));
+      // escape hatch - click to cancel reboot
+      if (!btn.waitForClick(5000)) {
+        USE_WIFI = true; // this looks wrong
+        // but is actually needed so we call app.loop() below
+        // which is required for resetting the board
+        handleResetAllSettings(); // trigger the board to reboot
+        return;
+      } else {
+        Serial.println(F("[INFO] Hard Reset aborted."));
+      }
+    } else {
+      // keep orange light on for 2 seconds to show we're not in WiFi mode
+      delay(2000);
+      Serial.println(F("[INFO] Starting without WiFi!"));
+    }
+  }
+
+  setupButton();
+
+  if (USE_WIFI) {
+    setupApp(); // blocks loop until connected to WiFi
+  }
+}
+
 void loop() {
-  // if app.loop() returns false, a reboot is pending (because we didn't call app.begin())
-  if (app.loop()) {
-    btn.update();
-    if (wiFiStatus == connected)
-    {
-      neoLoop(r, g, b, a, neo_mode, speed);
+  if (_resetFlagged) {
+    delay(5000);
+    ESP.reset();
+    delay(5000);
+    return;
+  }
+  
+  bool loopOK = true;
+
+  if (USE_WIFI) {
+    if (!app.loop()) {
+      return; // this indicates a reboot is pending
     }
-    else
-    {
-      neoLoop(_r, _g, _b, 100, breath_mode, 3);
-    }
+
+    loopOK = wiFiStatus == connected;
+  }
+
+  btn.update(); // update button state
+
+  if (loopOK)
+  {
+    neoLoop(r, g, b, a, neo_mode, speed); // still connected or not using WiFi
+  }
+  else
+  {
+    neoLoop(_r, _g, _b, 100, breath_mode, 3); // lost WiFi connection
   }
 }
