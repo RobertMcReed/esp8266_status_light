@@ -32,5 +32,9 @@ void solidBlue();
 void solidOrange();
 
 void clearStrip();
+uint8_t wheel_r(byte WheelPos);
+uint8_t wheel_g(byte WheelPos);
+uint8_t wheel_b(byte WheelPos);
+uint32_t Wheel(byte WheelPos);
 
 #endif

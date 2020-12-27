@@ -77,6 +77,10 @@ bool handleColorChange(uint8_t r, uint8_t g, uint8_t b) {
     Serial.print(b);
     Serial.println("]");
     stripColor = strip.Color(r, g, b);
+    last_r = r;
+    last_g = g;
+    last_b = b;
+
     return true;
   }
 
@@ -98,6 +102,8 @@ bool handleBrightnessChange(uint8_t a, uint8_t neo_mode) {
     } else {
       strip.setBrightness(alpha);
     }
+
+    last_a = alpha;
 
     return true;
   }
@@ -454,4 +460,48 @@ void solidRed() {
 void clearStrip() {
   strip.clear();
   strip.show();
+}
+
+uint8_t wheel_r (byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+
+  if(WheelPos < 85) {
+    return 255 - WheelPos * 3;
+  }
+  if(WheelPos < 170) {
+   return 0;
+  }
+  WheelPos -= 170;
+  return WheelPos * 3;
+}
+
+uint8_t wheel_g (byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+
+  if(WheelPos < 85) {
+    return 0;
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    return WheelPos * 3;
+  }
+  WheelPos -= 170;
+  return 255 - WheelPos * 3;
+}
+
+uint8_t wheel_b (byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if(WheelPos < 85) {
+    return WheelPos * 3;
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    return 255 - WheelPos * 3;
+  }
+
+  return 0;
+}
+
+uint32_t Wheel(byte WheelPos) {
+  return strip.Color(wheel_r(WheelPos), wheel_g(WheelPos), wheel_b(WheelPos));
 }
