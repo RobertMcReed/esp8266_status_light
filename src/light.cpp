@@ -3,7 +3,8 @@
 #include "light.h"
 
 #define LED_PIN  0 //D3
-#define LED_COUNT 8
+#define LED_COUNT 10
+
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 uint8_t last_r = 0;
 uint8_t last_g = 0;
@@ -32,6 +33,8 @@ void neoSetup() {
   strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
   strip.show();            // Turn OFF all pixels ASAP
   strip.setBrightness(50); // Set BRIGHTNESS to about 1/5 (max = 255)
+  Serial.print("Number of LEDs: ");
+  Serial.println(LED_COUNT);
 }
 
 void updateValues(uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t neo_mode) {
