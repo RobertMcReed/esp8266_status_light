@@ -73,7 +73,6 @@
         `<header class="container">
           <h1 id="title">ESP8266 Status Light</h1>
           <a
-            type="button"
             class="btn btn-outline-dark github"
             href="https://github.com/RobertMcReed/esp8266_status_light"
           >
